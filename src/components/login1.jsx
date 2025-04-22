@@ -80,7 +80,7 @@ export default function StudentLoginPage() {
       
       setTimeout(() => {
         setIsLoading(false)
-        router.push("/student/dashboard")
+        router.push("/dashboard")
       }, 1500)
     } else {
       setTimeout(() => {
