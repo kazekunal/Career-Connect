@@ -1,6 +1,12 @@
 'use client'
 import { StudentHeader } from "@/components/student-header"
-import { StudentProfile } from "@/components/student-profile"
+import dynamic from 'next/dynamic'
+
+// Use dynamic import for the component that might be using localStorage
+const StudentProfile = dynamic(
+  () => import('@/components/student-profile').then(mod => mod.StudentProfile),
+  { ssr: false } // Disable server-side rendering for this component
+)
 
 export default function StudentProfilePage() {
   return (
