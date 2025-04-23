@@ -22,7 +22,7 @@ export default function CompanyLoginPage() {
 
     setTimeout(() => {
       setIsLoading(false)
-      router.push("/company/dashboard")
+      router.push("/company")
     }, 1500)
   }
 
@@ -32,7 +32,7 @@ export default function CompanyLoginPage() {
 
     setTimeout(() => {
       setIsLoading(false)
-      router.push("/company/dashboard")
+      router.push("/company")
     }, 1500)
   }
 
