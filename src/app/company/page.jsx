@@ -1,9 +1,10 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Building2, Users, Briefcase, Mail, Plus, Eye, Edit, Trash2 } from "lucide-react"
+import { Building2, Users, Briefcase, Mail, Plus, Eye, Edit, Trash2, MessageCircle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea" // Import Textarea component
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export default function CompanyDashboardPage() {
   const [selectedJobApplicants, setSelectedJobApplicants] = useState([]);
   const [selectedJobTitle, setSelectedJobTitle] = useState("");
   const [selectedJobId, setSelectedJobId] = useState(null);
+  const [feedbackValues, setFeedbackValues] = useState({}); // Track feedback values in a state object
 
   // --- LocalStorage Helper Functions ---
   const getFromLocalStorage = (key, defaultValue) => {
@@ -101,6 +103,14 @@ export default function CompanyDashboardPage() {
     setSelectedJobApplicants(jobApplicants);
     setSelectedJobTitle(job.title);
     setSelectedJobId(job.id); // Store the job ID
+    
+    // Initialize feedback values state from applicants data
+    const initialFeedbackValues = {};
+    jobApplicants.forEach(applicant => {
+      initialFeedbackValues[applicant.id] = applicant.feedback || '';
+    });
+    setFeedbackValues(initialFeedbackValues);
+    
     setIsApplicantsDialogOpen(true);
   };
 
@@ -159,6 +169,42 @@ export default function CompanyDashboardPage() {
       return application;
     });
     saveToLocalStorage('userApplications', updatedUserApplications);
+  };
+
+  // --- New function to handle feedback changes ---
+  const handleFeedbackChange = (applicantId, feedback) => {
+    // Update local state for immediate feedback
+    setFeedbackValues(prev => ({
+      ...prev,
+      [applicantId]: feedback
+    }));
+  };
+
+  // --- Function to save feedback to localStorage ---
+  const saveFeedback = (applicantId) => {
+    if (!selectedJobId) return;
+
+    const feedback = feedbackValues[applicantId] || '';
+    const allApplicants = getFromLocalStorage(LOCAL_STORAGE_APPLICANTS_KEY, {});
+    const jobApplicants = allApplicants[selectedJobId] || [];
+
+    // Find and update the specific applicant with feedback
+    const updatedJobApplicants = jobApplicants.map(applicant => {
+      if (applicant.id === applicantId) {
+        return { ...applicant, feedback };
+      }
+      return applicant;
+    });
+
+    // Update the selected job applicants state for immediate UI feedback
+    setSelectedJobApplicants(updatedJobApplicants);
+
+    // Update the full applicants object and save to localStorage
+    const updatedAllApplicants = {
+      ...allApplicants,
+      [selectedJobId]: updatedJobApplicants,
+    };
+    saveToLocalStorage(LOCAL_STORAGE_APPLICANTS_KEY, updatedAllApplicants);
   };
 
   // --- Get status color utility ---
@@ -250,7 +296,7 @@ export default function CompanyDashboardPage() {
             <DialogHeader>
               <DialogTitle>Applicants for: {selectedJobTitle}</DialogTitle>
               <DialogDescription>
-                {selectedJobApplicants.length} applicant(s) found. You can update their status below.
+                {selectedJobApplicants.length} applicant(s) found. You can update their status and add feedback below.
               </DialogDescription>
             </DialogHeader>
 
@@ -258,42 +304,67 @@ export default function CompanyDashboardPage() {
               {selectedJobApplicants.length === 0 ? (
                 <p className="text-center py-8 text-gray-500">No applicants yet for this position.</p>
               ) : (
-                <div className="space-y-4 py-4">
+                <div className="space-y-6 py-4">
                   {selectedJobApplicants.map((applicant) => (
                     <Card key={applicant.id} className="bg-white shadow-sm border border-gray-200">
-                      <CardContent className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      <CardContent className="p-4">
                         {/* Applicant Details */}
-                        <div className="flex-grow">
-                          <h3 className="font-semibold text-base text-gray-900">{applicant.name}</h3>
-                          <p className="text-sm text-blue-600 hover:underline">
-                            <a href={`mailto:${applicant.email}`}>{applicant.email}</a>
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Applied: {new Date(applicant.appliedDate).toLocaleDateString()}
-                          </p>
-                        </div>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                          <div className="flex-grow">
+                            <h3 className="font-semibold text-base text-gray-900">{applicant.name}</h3>
+                            <p className="text-sm text-blue-600 hover:underline">
+                              <a href={`mailto:${applicant.email}`}>{applicant.email}</a>
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Applied: {new Date(applicant.appliedDate).toLocaleDateString()}
+                            </p>
+                          </div>
 
-                        {/* Status Badge and Selector */}
-                        <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
-                           <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${getStatusColor(applicant.status)}`}>
-                                {applicant.status}
-                           </span>
-                           <Select
-                                value={applicant.status}
-                                onValueChange={(newStatus) => handleApplicantStatusChange(applicant.id, newStatus)}
-                           >
-                             <SelectTrigger className="w-full sm:w-[150px] h-9 text-xs">
-                               <SelectValue placeholder="Change Status" />
-                             </SelectTrigger>
-                             <SelectContent>
-                               {APPLICATION_STATUSES.map(statusOption => (
-                                 <SelectItem key={statusOption} value={statusOption} className="text-xs">
-                                   {statusOption}
-                                 </SelectItem>
-                               ))}
-                             </SelectContent>
-                           </Select>
-                         </div>
+                          {/* Status Badge and Selector */}
+                          <div className="flex items-center gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${getStatusColor(applicant.status)}`}>
+                              {applicant.status}
+                            </span>
+                            <Select
+                              value={applicant.status}
+                              onValueChange={(newStatus) => handleApplicantStatusChange(applicant.id, newStatus)}
+                            >
+                              <SelectTrigger className="w-full sm:w-[150px] h-9 text-xs">
+                                <SelectValue placeholder="Change Status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {APPLICATION_STATUSES.map(statusOption => (
+                                  <SelectItem key={statusOption} value={statusOption} className="text-xs">
+                                    {statusOption}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        
+                        {/* Feedback Section */}
+                        <div className="mt-3 border-t pt-3 border-gray-100">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MessageCircle size={16} className="text-gray-500" />
+                            <h4 className="text-sm font-medium text-gray-700">Recruiter Feedback</h4>
+                          </div>
+                          <Textarea
+                            placeholder="Add notes about this candidate..."
+                            className="w-full text-sm resize-y min-h-[80px]"
+                            value={feedbackValues[applicant.id] || ''}
+                            onChange={(e) => handleFeedbackChange(applicant.id, e.target.value)}
+                          />
+                          <div className="flex justify-end mt-2">
+                            <Button 
+                              size="sm" 
+                              onClick={() => saveFeedback(applicant.id)}
+                              className="bg-green-600 hover:bg-green-700 text-xs"
+                            >
+                              Save Feedback
+                            </Button>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
