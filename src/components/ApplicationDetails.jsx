@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, FileText, Mail, Phone, CheckCircle } from 'lucide-react';
+import { Calendar, Clock, FileText, Mail, Phone, CheckCircle, MessageCircle } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 
 export default function ApplicationDetails({ selectedJob }) {
@@ -11,15 +11,44 @@ export default function ApplicationDetails({ selectedJob }) {
       const allApplicants = JSON.parse(localStorage.getItem('jobApplicants') || '{}');
       const jobApplicants = allApplicants[selectedJob.id] || [];
       
-      // Assuming the last application is the current user's
+      // Find the current user's application
+      // You may need to adjust this logic based on how you identify the current user's application
+      // For now, we'll use the latest application as you did before
       const latestApplication = jobApplicants[jobApplicants.length - 1] || {};
       
+      // Ensure we capture the feedback field if it exists
       setApplicationData({
         ...latestApplication,
+        feedback: latestApplication.feedback || '', // Ensure feedback is never undefined
         formattedDate: formatDate(latestApplication.appliedDate || new Date().toISOString())
       });
+
+      // Set up a listener for localStorage changes to keep feedback in sync
+      const handleStorageChange = (e) => {
+        if (e.key === 'jobApplicants') {
+          refreshApplicationData(selectedJob.id);
+        }
+      };
+
+      window.addEventListener('storage', handleStorageChange);
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+      };
     }
   }, [selectedJob]);
+
+  // Function to refresh application data when localStorage changes
+  const refreshApplicationData = (jobId) => {
+    const allApplicants = JSON.parse(localStorage.getItem('jobApplicants') || '{}');
+    const jobApplicants = allApplicants[jobId] || [];
+    const latestApplication = jobApplicants[jobApplicants.length - 1] || {};
+    
+    setApplicationData({
+      ...latestApplication,
+      feedback: latestApplication.feedback || '',
+      formattedDate: formatDate(latestApplication.appliedDate || new Date().toISOString())
+    });
+  };
   
   const formatDate = (dateString) => {
     try {
@@ -112,6 +141,23 @@ export default function ApplicationDetails({ selectedJob }) {
                 </div>
               </div>
             </div>
+          </div>
+          
+          {/* Company Feedback Section - Enhanced with better UI and fallback message */}
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-blue-500" />
+              Company Feedback
+            </h3>
+            {applicationData?.feedback ? (
+              <div className="bg-white p-3 rounded border border-blue-100">
+                <p className="text-gray-700">{applicationData.feedback}</p>
+              </div>
+            ) : (
+              <div className="bg-white p-3 rounded border border-blue-100">
+                <p className="text-gray-500 italic">No feedback provided yet. Check back later as your application progresses.</p>
+              </div>
+            )}
           </div>
           
           <div>
