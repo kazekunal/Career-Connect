@@ -118,10 +118,10 @@ export function StudentHeader() {
             </Sheet>
           </div>
 
-          <div className="hidden md:flex items-center gap-4">
-            <Link href="/student/notifications" className="hover:text-blue-200">
+          {/* <div className="hidden md:flex items-center gap-4">
+            <Link href="/notifications" className="hover:text-blue-200">
               <Bell className="h-5 w-5" />
-            </Link>
+            </Link> */}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
