@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Building2, Users, Briefcase, Mail, Plus, Eye, Edit, Trash2, MessageCircle } from "lucide-react"
+import { Building2, Users, Briefcase, Mail, Plus, Eye, Edit, Trash2, MessageCircle, Video } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea" // Import Textarea component
@@ -27,6 +27,7 @@ const APPLICATION_STATUSES = ["New", "Reviewed", "Shortlisted", "Interviewed", "
 const LOCAL_STORAGE_JOBS_KEY = 'jobPostings';
 const LOCAL_STORAGE_APPLICANTS_KEY = 'jobApplicants';
 const LOCAL_STORAGE_APPLICANT_COUNT_KEY = 'applicantCount';
+const GOOGLE_MEET_LINK = "https://meet.google.com/smj-ubzi-dsi";
 
 export default function CompanyDashboardPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -38,6 +39,7 @@ export default function CompanyDashboardPage() {
   const [selectedJobTitle, setSelectedJobTitle] = useState("");
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [feedbackValues, setFeedbackValues] = useState({}); // Track feedback values in a state object
+  const [meetingSent, setMeetingSent] = useState({}); // Track which applicants have been sent a meeting link
 
   // --- LocalStorage Helper Functions ---
   const getFromLocalStorage = (key, defaultValue) => {
@@ -110,6 +112,13 @@ export default function CompanyDashboardPage() {
       initialFeedbackValues[applicant.id] = applicant.feedback || '';
     });
     setFeedbackValues(initialFeedbackValues);
+    
+    // Initialize meeting sent state from applicants data
+    const initialMeetingSent = {};
+    jobApplicants.forEach(applicant => {
+      initialMeetingSent[applicant.id] = applicant.meetingSent || false;
+    });
+    setMeetingSent(initialMeetingSent);
     
     setIsApplicantsDialogOpen(true);
   };
@@ -205,6 +214,41 @@ export default function CompanyDashboardPage() {
       [selectedJobId]: updatedJobApplicants,
     };
     saveToLocalStorage(LOCAL_STORAGE_APPLICANTS_KEY, updatedAllApplicants);
+  };
+
+  // --- New function to handle sending Google Meet link ---
+  const sendMeetingLink = (applicantId) => {
+    if (!selectedJobId) return;
+
+    const allApplicants = getFromLocalStorage(LOCAL_STORAGE_APPLICANTS_KEY, {});
+    const jobApplicants = allApplicants[selectedJobId] || [];
+
+    // Find and update the specific applicant with meeting sent status
+    const updatedJobApplicants = jobApplicants.map(applicant => {
+      if (applicant.id === applicantId) {
+        return { ...applicant, meetingSent: true };
+      }
+      return applicant;
+    });
+
+    // Update the meeting sent state for immediate UI feedback
+    setMeetingSent(prev => ({
+      ...prev,
+      [applicantId]: true
+    }));
+
+    // Update the selected job applicants state
+    setSelectedJobApplicants(updatedJobApplicants);
+
+    // Update the full applicants object and save to localStorage
+    const updatedAllApplicants = {
+      ...allApplicants,
+      [selectedJobId]: updatedJobApplicants,
+    };
+    saveToLocalStorage(LOCAL_STORAGE_APPLICANTS_KEY, updatedAllApplicants);
+
+    // In a real application, this would send an email to the applicant
+    console.log(`Meeting link ${GOOGLE_MEET_LINK} sent to applicant ${applicantId}`);
   };
 
   // --- Get status color utility ---
@@ -341,6 +385,21 @@ export default function CompanyDashboardPage() {
                               </SelectContent>
                             </Select>
                           </div>
+                        </div>
+                        
+                        {/* Google Meet Button */}
+                        <div className="mt-3 mb-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            className={meetingSent[applicant.id] ? 
+                              "bg-green-600 hover:bg-green-700 text-xs flex items-center gap-1" : 
+                              "bg-blue-600 hover:bg-blue-700 text-xs flex items-center gap-1"}
+                            onClick={() => sendMeetingLink(applicant.id)}
+                            disabled={meetingSent[applicant.id]}
+                          >
+                            <Video size={14} />
+                            {meetingSent[applicant.id] ? "Meeting Link Sent" : "Send Google Meet Link"}
+                          </Button>
                         </div>
                         
                         {/* Feedback Section */}
