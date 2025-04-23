@@ -118,20 +118,32 @@ export function StudentProfile({ onProfileUpdate }) {
   }
 
   const handleResumeUpload = (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const file = event.target.files?.[0];
+    if (!file) return;
+  
     if (!ACCEPTED_RESUME_TYPES.includes(file.type)) {
-      alert("Please upload a PDF file.")
-      return
+      alert("Please upload a valid resume (PDF, DOC, DOCX).");
+      return;
     }
+  
     if (file.size > MAX_FILE_SIZE) {
-      alert("Please upload a resume smaller than 5MB.")
-      return
+      alert("Please upload a resume smaller than 5MB.");
+      return;
     }
-    setResumeFile(file)
-    setResumeName(file.name)
-    alert(`${file.name} has been uploaded successfully.`)
-  }
+  
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result; // This will include the mime header
+      localStorage.setItem("studentResumeBase64", base64);
+      localStorage.setItem("studentResumeName", file.name);
+      
+      setResumeFile(file);
+      setResumeName(file.name);
+      alert(`${file.name} has been uploaded successfully.`);
+    };
+    reader.readAsDataURL(file); // Converts file to base64
+  };
+  
 
   const currentYear = new Date().getFullYear()
   const graduationYears = Array.from({ length: 7 }, (_, i) => (currentYear + i).toString())
