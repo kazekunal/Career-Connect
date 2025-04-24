@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronDown, Search, Filter, Clock, Upload, FileText } from "lucide-react"
+import { ChevronDown, Search, Filter, Clock, Upload, FileText, Bell, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +25,34 @@ import { ApplyDialog } from "./apply"
 import AppliedJobs from './applied';
 import ApplicationDetails from './ApplicationDetails';
 
+// Notification Component
+const Notification = ({ title, company, onClose }) => {
+  return (
+    <div className="fixed top-6 right-6 bg-white border border-blue-200 rounded-lg shadow-lg p-4 w-80 z-50 animate-slide-in">
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex items-center">
+          <Bell className="h-5 w-5 text-blue-600 mr-2" />
+          <span className="font-medium text-blue-800">New Job Alert</span>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <h4 className="font-medium text-gray-800">{title}</h4>
+      <p className="text-sm text-gray-600">{company}</p>
+      <div className="mt-3 flex justify-end">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
+        >
+          View Details
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 export function JobListings() {
   const [jobListings, setJobListings] = useState([])
   const [selectedJob, setSelectedJob] = useState(null)
@@ -36,37 +64,41 @@ export function JobListings() {
   const [savedJobs, setSavedJobs] = useState([])
   const [appliedJobs, setAppliedJobs] = useState([])
   
+  // Notification states
+  const [showNotification, setShowNotification] = useState(false)
+  const [newJobNotification, setNewJobNotification] = useState(null)
+  const [lastJobCount, setLastJobCount] = useState(0)
+  
   // Student profile data
   const [studentProfile, setStudentProfile] = useState(null)
   const [resumeName, setResumeName] = useState("");
   const [resumeFile, setResumeFile] = useState(null);
  
+  useEffect(() => {
+    const base64 = localStorage.getItem("studentResumeBase64");
+    const name = localStorage.getItem("studentResumeName");
 
-    useEffect(() => {
-      const base64 = localStorage.getItem("studentResumeBase64");
-      const name = localStorage.getItem("studentResumeName");
+    if (base64 && name) {
+      const byteString = atob(base64.split(',')[1]);
+      const mimeString = base64.split(',')[0].split(':')[1].split(';')[0];
 
-      if (base64 && name) {
-        const byteString = atob(base64.split(',')[1]);
-        const mimeString = base64.split(',')[0].split(':')[1].split(';')[0];
-
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-        }
-
-        const blob = new Blob([ab], { type: mimeString });
-        const file = new File([blob], name, { type: mimeString });
-
-        setResumeFile(file);
-        setResumeName(name);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
       }
-    }, []);
 
- 
+      const blob = new Blob([ab], { type: mimeString });
+      const file = new File([blob], name, { type: mimeString });
+
+      setResumeFile(file);
+      setResumeName(name);
+    }
+  }, []);
+
   // Application dialog state
   const [applyDialogOpen, setApplyDialogOpen] = useState(false)
+  
   // Load jobs, saved/applied jobs, and student profile from localStorage on component mount
   useEffect(() => {
     // Load jobs
@@ -93,6 +125,11 @@ export function JobListings() {
       }))
      
       setJobListings(transformedJobs)
+      
+      // Save initial job count for later comparison
+      if (lastJobCount === 0) {
+        setLastJobCount(transformedJobs.length)
+      }
      
       // Set the first job as selected if available
       if (transformedJobs.length > 0) {
@@ -124,6 +161,69 @@ export function JobListings() {
       setResumeName(storedResumeName)
     }
   }, [])
+  
+  // Poll for new jobs periodically
+  useEffect(() => {
+    const checkForNewJobs = () => {
+      const storedJobs = localStorage.getItem('jobPostings')
+      if (storedJobs) {
+        const parsedJobs = JSON.parse(storedJobs)
+        
+        // Check if there are new jobs
+        if (parsedJobs.length > lastJobCount && lastJobCount > 0) {
+          // Get the newest job
+          const newestJob = parsedJobs[parsedJobs.length - 1] 
+          
+          // Show notification for the new job
+          setNewJobNotification({
+            title: newestJob.title,
+            company: newestJob.company
+          })
+          setShowNotification(true)
+          
+          // Update job count
+          setLastJobCount(parsedJobs.length)
+          
+          // Update job listings
+          const transformedJobs = parsedJobs.map(job => ({
+            id: job.id,
+            title: job.title,
+            company: job.company,
+            logo: "/placeholder.svg?height=40&width=40",
+            location: job.location || "Remote",
+            daysLeft: job.deadline ? getDaysLeft(job.deadline) : 30,
+            experienceLevel: getExperienceLevel(job.eligibility),
+            updatedOn: job.postedDate ? formatDate(job.postedDate) : "Recent",
+            description: job.description,
+            responsibilities: job.description.split('\n').filter(line => line.trim()),
+            qualifications: job.eligibility.split('\n').filter(line => line.trim()),
+            salary: job.salary || "Competitive",
+            workType: getWorkType(job.description),
+            category: getJobCategory(job.title)
+          }))
+          
+          setJobListings(transformedJobs)
+        }
+      }
+    }
+    
+    // Set up the polling interval - check every 30 seconds
+    const intervalId = setInterval(checkForNewJobs, 30000)
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId)
+  }, [lastJobCount])
+  
+  // Auto-hide notification after 5 seconds
+  useEffect(() => {
+    if (showNotification) {
+      const timer = setTimeout(() => {
+        setShowNotification(false)
+      }, 5000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [showNotification])
 
   // Helper functions to extract/format job data
   const getDaysLeft = (deadline) => {
@@ -223,62 +323,78 @@ export function JobListings() {
     setFilterCategory(value)
   }
 
-  // Open the apply dialog and pre-populate with student profile data
-  // Inside JobListings component
-const handleOpenApplyDialog = () => {
-  setApplyDialogOpen(true); 
-
-};
- // This function will be passed as a prop to ApplyDialog
-const handleActualApplicationSubmit = (submittedData) => {
-  // submittedData contains { name, email, phone, coverLetter, resumeFile }
-
-  if (!selectedJob) return; 
-
-  console.log("Submitting application:", submittedData); // For debugging
-
-  // --- Core Logic (remains in JobListings) ---
-
-  // 1. Update applied jobs state and localStorage
-  const updatedAppliedJobs = [...appliedJobs, selectedJob.id];
-  setAppliedJobs(updatedAppliedJobs);
-  localStorage.setItem('appliedJobs', JSON.stringify(updatedAppliedJobs));
-
-  // 2. Update jobApplicants in localStorage
-  const allApplicants = JSON.parse(localStorage.getItem('jobApplicants') || '{}');
-  if (!allApplicants[selectedJob.id]) {
-    allApplicants[selectedJob.id] = [];
+  // Handle closing the notification
+  const handleCloseNotification = () => {
+    setShowNotification(false)
+  }
+  
+  // Function to view the notified job
+  const handleViewNotifiedJob = () => {
+    // Find the job from the notification
+    const notifiedJob = jobListings.find(
+      job => job.title === newJobNotification.title && job.company === newJobNotification.company
+    )
+    
+    if (notifiedJob) {
+      setSelectedJob(notifiedJob)
+      setShowJobDetails(true)
+      setShowNotification(false)
+    }
   }
 
-  allApplicants[selectedJob.id].push({
-    id: `applicant-<span class="math-inline">\{selectedJob\.id\}\-</span>{Date.now()}`,
-    name: submittedData.name,
-    email: submittedData.email,
-    phone: submittedData.phone,
-    // Note: You might want to store the cover letter too if needed later
-    appliedDate: new Date().toISOString(),
-    status: "New",
-    // Use the name from the submitted File object
-    resumeFilename: submittedData.resumeFile?.name || "resume.pdf" 
-  });
-
-  localStorage.setItem('jobApplicants', JSON.stringify(allApplicants));
-
-  // 3. Update applicant count (optional, but good practice)
-  const totalApplicants = Object.values(allApplicants).reduce((sum, jobApplicants) =>
-    sum + jobApplicants.length, 0);
-  localStorage.setItem('applicantCount', JSON.stringify(totalApplicants));
-
-  // --- End Core Logic ---
-
-  // 4. Close the dialog
-  setApplyDialogOpen(false);
-
-  // 5. Show success message
-  alert(`Your application for ${selectedJob.title} at ${selectedJob.company} has been submitted successfully!`);
-
+  // Open the apply dialog and pre-populate with student profile data
+  const handleOpenApplyDialog = () => {
+    setApplyDialogOpen(true); 
+  };
   
-};
+  // This function will be passed as a prop to ApplyDialog
+  const handleActualApplicationSubmit = (submittedData) => {
+    // submittedData contains { name, email, phone, coverLetter, resumeFile }
+
+    if (!selectedJob) return; 
+
+    console.log("Submitting application:", submittedData); // For debugging
+
+    // --- Core Logic (remains in JobListings) ---
+
+    // 1. Update applied jobs state and localStorage
+    const updatedAppliedJobs = [...appliedJobs, selectedJob.id];
+    setAppliedJobs(updatedAppliedJobs);
+    localStorage.setItem('appliedJobs', JSON.stringify(updatedAppliedJobs));
+
+    // 2. Update jobApplicants in localStorage
+    const allApplicants = JSON.parse(localStorage.getItem('jobApplicants') || '{}');
+    if (!allApplicants[selectedJob.id]) {
+      allApplicants[selectedJob.id] = [];
+    }
+
+    allApplicants[selectedJob.id].push({
+      id: `applicant-${selectedJob.id}-${Date.now()}`,
+      name: submittedData.name,
+      email: submittedData.email,
+      phone: submittedData.phone,
+      // Note: You might want to store the cover letter too if needed later
+      appliedDate: new Date().toISOString(),
+      status: "New",
+      // Use the name from the submitted File object
+      resumeFilename: submittedData.resumeFile?.name || "resume.pdf" 
+    });
+
+    localStorage.setItem('jobApplicants', JSON.stringify(allApplicants));
+
+    // 3. Update applicant count (optional, but good practice)
+    const totalApplicants = Object.values(allApplicants).reduce((sum, jobApplicants) =>
+      sum + jobApplicants.length, 0);
+    localStorage.setItem('applicantCount', JSON.stringify(totalApplicants));
+
+    // --- End Core Logic ---
+
+    // 4. Close the dialog
+    setApplyDialogOpen(false);
+
+    // 5. Show success message
+    alert(`Your application for ${selectedJob.title} at ${selectedJob.company} has been submitted successfully!`);
+  };
 
   // Save/bookmark a job
   const handleSaveJob = (jobId) => {
@@ -290,6 +406,15 @@ const handleActualApplicationSubmit = (submittedData) => {
 
   return (
     <div className="flex flex-col space-y-6">
+      {/* Notification Component */}
+      {showNotification && newJobNotification && (
+        <Notification
+          title={newJobNotification.title}
+          company={newJobNotification.company}
+          onClose={handleCloseNotification}
+        />
+      )}
+      
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
           <div className="relative">
@@ -561,14 +686,32 @@ const handleActualApplicationSubmit = (submittedData) => {
       </div>
 
       <ApplyDialog
-          open={applyDialogOpen}
-          onOpenChange={setApplyDialogOpen} // Function to open/close dialog
-          selectedJob={selectedJob}         // Currently selected job details
-          studentProfile={studentProfile}   // Student profile data
-          initialResumeFile={resumeFile}    // Pass the File object loaded from localStorage
-          initialResumeName={resumeName}    // Pass the resume name loaded from localStorage
-          onApplicationSubmit={handleActualApplicationSubmit} // Callback for submission
-        />
+        open={applyDialogOpen}
+        onOpenChange={setApplyDialogOpen} // Function to open/close dialog
+        selectedJob={selectedJob}         // Currently selected job details
+        studentProfile={studentProfile}   // Student profile data
+        initialResumeFile={resumeFile}    // Pass the File object loaded from localStorage
+        initialResumeName={resumeName}    // Pass the resume name loaded from localStorage
+        onApplicationSubmit={handleActualApplicationSubmit} // Callback for submission
+      />
+      
+      {/* Add CSS for animation */}
+      <style jsx global>{`
+        @keyframes slide-in {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out forwards;
+        }
+      `}</style>
     </div>
   )
 }
